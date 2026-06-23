@@ -41,51 +41,55 @@ elif page == "Gesture Predictor":
 
 elif page == "Live Webcam":
     st.title("Live Webcam Prediction")
-    st.markdown("<div class='glass-card'><p>Choose your webcam mode below. <b>True Live Video</b> only works when running on your local PC!</p></div>", unsafe_allow_html=True)
+    st.markdown("<div class='glass-card'><p>True real-time predictions using WebRTC. Place your hand inside the green square!</p></div>", unsafe_allow_html=True)
     
-    mode = st.radio("Select Webcam Mode:", ["Take a Photo (Works on Cloud)", "True Live Video (Local PC Only)"])
-    
-    if mode == "Take a Photo (Works on Cloud)":
-        img_file_buffer = st.camera_input("Take a picture")
-        if img_file_buffer is not None:
-            image = Image.open(img_file_buffer)
-            with st.spinner("Analyzing gesture..."):
-                gesture, conf, proc_img = predict_gesture(image)
-                st.markdown(f"<div class='glass-card'><h2 style='color: #00FF95; text-align: center;'>Prediction: {gesture}</h2><h4 style='text-align: center;'>Confidence: {conf:.1f}%</h4></div>", unsafe_allow_html=True)
-                if proc_img is not None:
-                    vis = (proc_img[0, :, :, 0] * 255).astype(np.uint8)
-                    st.image(vis, width=200, caption="AI Vision")
-    else:
-        st.info("💡 To use this mode, open your computer's terminal and run: `streamlit run app.py`")
-        run = st.checkbox('Start Live Webcam')
-        FRAME_WINDOW = st.image([])
+    try:
+        import av
+        from streamlit_webrtc import webrtc_streamer, RTCConfiguration, WebRtcMode
         
-        if run:
-            cap = cv2.VideoCapture(0)
-            if not cap.isOpened():
-                st.error("🚨 CRITICAL ERROR: Could not access a physical webcam! You are running this on Streamlit Cloud (which has no webcam). Please run this app locally on your PC to use Live Video!")
-            else:
-                while run:
-                    ret, frame = cap.read()
-                    if not ret:
-                        st.error("Failed to capture video.")
-                        break
+        # Use Google's free STUN server for reliable WebRTC connections
+        RTC_CONFIGURATION = RTCConfiguration(
+            {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+        )
+        
+        def video_frame_callback(frame):
+            img = frame.to_ndarray(format="bgr24")
+            
+            # Flip frame horizontally for natural mirror effect
+            img = cv2.flip(img, 1)
+            
+            # Define ROI bounding box
+            h, w, _ = img.shape
+            x1, y1 = int(w/2) - 150, int(h/2) - 150
+            x2, y2 = x1 + 300, y1 + 300
+            
+            # Extract ROI and predict
+            roi = img[y1:y2, x1:x2]
+            if roi.shape[0] > 0 and roi.shape[1] > 0:
+                try:
+                    gesture, conf, _ = predict_gesture(roi)
                     
-                    frame = cv2.flip(frame, 1)
-                    h, w, _ = frame.shape
-                    x1, y1 = int(w/2) - 150, int(h/2) - 150
-                    x2, y2 = x1 + 300, y1 + 300
+                    # Draw the green ROI box
+                    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 149), 2)
                     
-                    roi = frame[y1:y2, x1:x2]
-                    if roi.shape[0] > 0 and roi.shape[1] > 0:
-                        gesture, conf, _ = predict_gesture(roi)
-                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 149), 2)
-                        cv2.putText(frame, f"{gesture} ({conf:.1f}%)", (x1, y1 - 15), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 149), 2)
-                    
-                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    FRAME_WINDOW.image(frame)
-                cap.release()
+                    # Draw prediction text
+                    cv2.putText(img, f"{gesture} ({conf:.1f}%)", (x1, y1 - 15), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 149), 2)
+                except Exception as e:
+                    cv2.putText(img, "Model Error", (x1, y1 - 15), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                            
+            return av.VideoFrame.from_ndarray(img, format="bgr24")
+            
+        webrtc_streamer(
+            key="gesture-cam",
+            mode=WebRtcMode.SENDRECV,
+            rtc_configuration=RTC_CONFIGURATION,
+            media_stream_constraints={"video": True, "audio": False},
+            video_frame_callback=video_frame_callback,
+            async_processing=False  # CRITICAL: Disabling this prevents TensorFlow threading segfaults on Streamlit Cloud!
+        )
+    except ImportError:
+        st.error("Please wait while Streamlit finishes installing packages...")
 
 elif page == "Analytics":
     st.title("Model Analytics")

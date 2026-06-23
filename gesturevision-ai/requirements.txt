@@ -1,7 +1,8 @@
 streamlit
 tensorflow-cpu
-opencv-python-headless
+opencv-python
 pillow
 scikit-learn
 matplotlib
 pandas
+streamlit-webrtc
