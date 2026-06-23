@@ -44,10 +44,9 @@ elif page == "Live Webcam":
     st.markdown("<div class='glass-card'><p>True real-time predictions using WebRTC. Place your hand inside the green square!</p></div>", unsafe_allow_html=True)
     
     try:
+        from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration, WebRtcMode
         import av
-        from streamlit_webrtc import webrtc_streamer, RTCConfiguration, WebRtcMode
         
-        # Use Google's free STUN server for reliable WebRTC connections
         RTC_CONFIGURATION = RTCConfiguration(
             {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
         )

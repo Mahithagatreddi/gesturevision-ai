@@ -1,5 +1,5 @@
 streamlit
-tflite-runtime
+ai-edge-litert
 opencv-python-headless==4.8.0.74
 pillow
 scikit-learn
