@@ -40,53 +40,27 @@ elif page == "Gesture Predictor":
                 st.info(f"Confidence: {conf:.2f}%")
 
 elif page == "Live Webcam":
-    st.title("Live Webcam Prediction")
-    st.markdown("<div class='glass-card'><p>True real-time predictions using WebRTC. Place your hand inside the green square!</p></div>", unsafe_allow_html=True)
+    st.title("Webcam Prediction")
+    st.markdown("<div class='glass-card'><p>Take a picture using your webcam to predict the hand gesture. Make sure your hand is well-lit and centered!</p></div>", unsafe_allow_html=True)
     
-    try:
-        import av
-        from streamlit_webrtc import webrtc_streamer, RTCConfiguration, WebRtcMode
+    # Use Streamlit's native camera input which securely accesses the user's browser webcam!
+    img_file_buffer = st.camera_input("Take a picture")
+    
+    if img_file_buffer is not None:
+        # Read the image from the browser webcam
+        image = Image.open(img_file_buffer)
         
-        # Use Google's free STUN server for reliable WebRTC connections
-        RTC_CONFIGURATION = RTCConfiguration(
-            {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-        )
-        
-        def video_frame_callback(frame):
-            img = frame.to_ndarray(format="bgr24")
+        with st.spinner("Analyzing gesture..."):
+            gesture, conf, proc_img = predict_gesture(image)
             
-            # Flip frame horizontally for natural mirror effect
-            img = cv2.flip(img, 1)
+            # Display results beautifully
+            st.markdown(f"<div class='glass-card'><h2 style='color: #00FF95; text-align: center;'>Prediction: {gesture}</h2><h4 style='text-align: center;'>Confidence: {conf:.1f}%</h4></div>", unsafe_allow_html=True)
             
-            # Define ROI bounding box
-            h, w, _ = img.shape
-            x1, y1 = int(w/2) - 150, int(h/2) - 150
-            x2, y2 = x1 + 300, y1 + 300
-            
-            # Extract ROI and predict
-            roi = img[y1:y2, x1:x2]
-            if roi.shape[0] > 0 and roi.shape[1] > 0:
-                gesture, conf, _ = predict_gesture(roi)
-                
-                # Draw the green ROI box
-                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 149), 2)
-                
-                # Draw prediction text
-                cv2.putText(img, f"{gesture} ({conf:.1f}%)", (x1, y1 - 15), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 149), 2)
-                            
-            return av.VideoFrame.from_ndarray(img, format="bgr24")
-            
-        webrtc_streamer(
-            key="gesture-cam",
-            mode=WebRtcMode.SENDRECV,
-            rtc_configuration=RTC_CONFIGURATION,
-            media_stream_constraints={"video": True, "audio": False},
-            video_frame_callback=video_frame_callback,
-            async_processing=True
-        )
-    except ImportError:
-        st.error("Please add 'streamlit-webrtc' to your requirements.txt")
+            # Show the AI Vision (What the CNN actually sees)
+            if proc_img is not None:
+                st.write("**AI Vision (What the neural network processed):**")
+                vis = (proc_img[0, :, :, 0] * 255).astype(np.uint8)
+                st.image(vis, width=200, caption="Preprocessed Silhouette")
 
 elif page == "Analytics":
     st.title("Model Analytics")
