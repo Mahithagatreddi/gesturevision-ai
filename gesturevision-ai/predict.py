@@ -1,23 +1,28 @@
 import numpy as np
 import cv2
-import tensorflow as tf
-from PIL import Image
 import os
+import tensorflow.lite as tflite
+from PIL import Image
 
 # Load model lazily
-MODEL = None
+INTERPRETER = None
+INPUT_DETAILS = None
+OUTPUT_DETAILS = None
 
-def get_model():
-    global MODEL
-    if MODEL is None:
+def get_interpreter():
+    global INTERPRETER, INPUT_DETAILS, OUTPUT_DETAILS
+    if INTERPRETER is None:
         try:
             base_dir = os.path.dirname(os.path.abspath(__file__))
-            model_path = os.path.join(base_dir, 'saved_model', 'gesture_model.h5')
-            MODEL = tf.keras.models.load_model(model_path)
+            model_path = os.path.join(base_dir, 'saved_model', 'gesture_model.tflite')
+            INTERPRETER = tflite.Interpreter(model_path=model_path)
+            INTERPRETER.allocate_tensors()
+            INPUT_DETAILS = INTERPRETER.get_input_details()
+            OUTPUT_DETAILS = INTERPRETER.get_output_details()
         except Exception as e:
-            print("Error loading model:", e)
+            print("Error loading TFLite model:", e)
             return str(e)
-    return MODEL
+    return INTERPRETER
 
 LABELS = ['01_palm', '02_l', '03_fist', '04_fist_moved', '05_thumb', '06_index', '07_ok', '08_palm_moved', '09_c', '10_down']
 
@@ -55,12 +60,18 @@ def preprocess_image(image):
     return img
 
 def predict_gesture(image):
-    model = get_model()
-    if isinstance(model, str):
-        return f"Error: {model}", 0.0, None
-    if model is None:
+    interpreter = get_interpreter()
+    if isinstance(interpreter, str):
+        return f"Error: {interpreter}", 0.0, None
+    if interpreter is None:
         return "Model not found", 0.0, None
+        
     img = preprocess_image(image)
-    preds = model.predict(img, verbose=0)[0]
+    
+    # Run TFLite inference
+    interpreter.set_tensor(INPUT_DETAILS[0]['index'], img)
+    interpreter.invoke()
+    preds = interpreter.get_tensor(OUTPUT_DETAILS[0]['index'])[0]
+    
     idx = np.argmax(preds)
     return LABELS[idx], float(preds[idx]) * 100, img
