@@ -40,60 +40,27 @@ elif page == "Gesture Predictor":
                 st.info(f"Confidence: {conf:.2f}%")
 
 elif page == "Live Webcam":
-    st.title("Live Webcam Prediction")
-    st.markdown("<div class='glass-card'><p>Real-time predictions using your webcam.<br><b>IMPORTANT: Place your hand inside the green square!</b></p></div>", unsafe_allow_html=True)
+    st.title("Webcam Prediction")
+    st.markdown("<div class='glass-card'><p>Take a picture using your webcam to predict the hand gesture. Make sure your hand is well-lit and centered!</p></div>", unsafe_allow_html=True)
     
-    run = st.checkbox('Start Webcam')
-    FRAME_WINDOW = st.image([])
+    # Use Streamlit's native camera input which securely accesses the user's browser webcam!
+    img_file_buffer = st.camera_input("Take a picture")
     
-    if run:
-        cap = cv2.VideoCapture(0)
-        while run:
-            ret, frame = cap.read()
-            if not ret:
-                st.error("Failed to capture video from webcam.")
-                break
+    if img_file_buffer is not None:
+        # Read the image from the browser webcam
+        image = Image.open(img_file_buffer)
+        
+        with st.spinner("Analyzing gesture..."):
+            gesture, conf, proc_img = predict_gesture(image)
             
-            # Flip frame horizontally for natural mirror effect
-            frame = cv2.flip(frame, 1)
+            # Display results beautifully
+            st.markdown(f"<div class='glass-card'><h2 style='color: #00FF95; text-align: center;'>Prediction: {gesture}</h2><h4 style='text-align: center;'>Confidence: {conf:.1f}%</h4></div>", unsafe_allow_html=True)
             
-            # Define a Region of Interest (ROI) bounding box
-            h, w, _ = frame.shape
-            x1, y1 = int(w/2) - 150, int(h/2) - 150
-            x2, y2 = x1 + 300, y1 + 300
-            
-            # Extract ROI
-            roi = frame[y1:y2, x1:x2]
-            
-            if roi.shape[0] > 0 and roi.shape[1] > 0:
-                # Predict ONLY on the cropped ROI
-                gesture, conf, proc_img = predict_gesture(roi)
-                
-                # Draw the green ROI box on the main frame
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 149), 2)
-                
-                # Draw the prediction text above the box
-                cv2.putText(frame, f"{gesture} ({conf:.1f}%)", (x1, y1 - 15), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 149), 2)
-                            
-                # Overlay AI Vision (What the CNN actually sees)
-                if proc_img is not None:
-                    vis = (proc_img[0, :, :, 0] * 255).astype(np.uint8)
-                    vis_rgb = cv2.cvtColor(vis, cv2.COLOR_GRAY2RGB)
-                    vis_rgb = cv2.resize(vis_rgb, (150, 150))
-                    
-                    # Place in top right corner
-                    frame[10:160, frame.shape[1]-160:frame.shape[1]-10] = vis_rgb
-                    cv2.putText(frame, "AI Vision", (frame.shape[1]-150, 25), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 149), 2)
-            
-            # Convert BGR to RGB for Streamlit
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            FRAME_WINDOW.image(frame)
-            
-        cap.release()
-    else:
-        st.write("Check the box to start the webcam.")
+            # Show the AI Vision (What the CNN actually sees)
+            if proc_img is not None:
+                st.write("**AI Vision (What the neural network processed):**")
+                vis = (proc_img[0, :, :, 0] * 255).astype(np.uint8)
+                st.image(vis, width=200, caption="Preprocessed Silhouette")
 
 elif page == "Analytics":
     st.title("Model Analytics")
