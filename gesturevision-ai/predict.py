@@ -11,9 +11,12 @@ def get_model():
     global MODEL
     if MODEL is None:
         try:
-            MODEL = tf.keras.models.load_model('saved_model/gesture_model.h5')
-        except:
-            pass
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            model_path = os.path.join(base_dir, 'saved_model', 'gesture_model.h5')
+            MODEL = tf.keras.models.load_model(model_path)
+        except Exception as e:
+            print("Error loading model:", e)
+            return str(e)
     return MODEL
 
 LABELS = ['01_palm', '02_l', '03_fist', '04_fist_moved', '05_thumb', '06_index', '07_ok', '08_palm_moved', '09_c', '10_down']
@@ -53,6 +56,8 @@ def preprocess_image(image):
 
 def predict_gesture(image):
     model = get_model()
+    if isinstance(model, str):
+        return f"Error: {model}", 0.0, None
     if model is None:
         return "Model not found", 0.0, None
     img = preprocess_image(image)
