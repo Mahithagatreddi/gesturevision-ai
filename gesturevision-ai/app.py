@@ -40,27 +40,52 @@ elif page == "Gesture Predictor":
                 st.info(f"Confidence: {conf:.2f}%")
 
 elif page == "Live Webcam":
-    st.title("Webcam Prediction")
-    st.markdown("<div class='glass-card'><p>Take a picture using your webcam to predict the hand gesture. Make sure your hand is well-lit and centered!</p></div>", unsafe_allow_html=True)
+    st.title("Live Webcam Prediction")
+    st.markdown("<div class='glass-card'><p>Choose your webcam mode below. <b>True Live Video</b> only works when running on your local PC!</p></div>", unsafe_allow_html=True)
     
-    # Use Streamlit's native camera input which securely accesses the user's browser webcam!
-    img_file_buffer = st.camera_input("Take a picture")
+    mode = st.radio("Select Webcam Mode:", ["Take a Photo (Works on Cloud)", "True Live Video (Local PC Only)"])
     
-    if img_file_buffer is not None:
-        # Read the image from the browser webcam
-        image = Image.open(img_file_buffer)
+    if mode == "Take a Photo (Works on Cloud)":
+        img_file_buffer = st.camera_input("Take a picture")
+        if img_file_buffer is not None:
+            image = Image.open(img_file_buffer)
+            with st.spinner("Analyzing gesture..."):
+                gesture, conf, proc_img = predict_gesture(image)
+                st.markdown(f"<div class='glass-card'><h2 style='color: #00FF95; text-align: center;'>Prediction: {gesture}</h2><h4 style='text-align: center;'>Confidence: {conf:.1f}%</h4></div>", unsafe_allow_html=True)
+                if proc_img is not None:
+                    vis = (proc_img[0, :, :, 0] * 255).astype(np.uint8)
+                    st.image(vis, width=200, caption="AI Vision")
+    else:
+        st.info("💡 To use this mode, open your computer's terminal and run: `streamlit run app.py`")
+        run = st.checkbox('Start Live Webcam')
+        FRAME_WINDOW = st.image([])
         
-        with st.spinner("Analyzing gesture..."):
-            gesture, conf, proc_img = predict_gesture(image)
-            
-            # Display results beautifully
-            st.markdown(f"<div class='glass-card'><h2 style='color: #00FF95; text-align: center;'>Prediction: {gesture}</h2><h4 style='text-align: center;'>Confidence: {conf:.1f}%</h4></div>", unsafe_allow_html=True)
-            
-            # Show the AI Vision (What the CNN actually sees)
-            if proc_img is not None:
-                st.write("**AI Vision (What the neural network processed):**")
-                vis = (proc_img[0, :, :, 0] * 255).astype(np.uint8)
-                st.image(vis, width=200, caption="Preprocessed Silhouette")
+        if run:
+            cap = cv2.VideoCapture(0)
+            if not cap.isOpened():
+                st.error("🚨 CRITICAL ERROR: Could not access a physical webcam! You are running this on Streamlit Cloud (which has no webcam). Please run this app locally on your PC to use Live Video!")
+            else:
+                while run:
+                    ret, frame = cap.read()
+                    if not ret:
+                        st.error("Failed to capture video.")
+                        break
+                    
+                    frame = cv2.flip(frame, 1)
+                    h, w, _ = frame.shape
+                    x1, y1 = int(w/2) - 150, int(h/2) - 150
+                    x2, y2 = x1 + 300, y1 + 300
+                    
+                    roi = frame[y1:y2, x1:x2]
+                    if roi.shape[0] > 0 and roi.shape[1] > 0:
+                        gesture, conf, _ = predict_gesture(roi)
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 149), 2)
+                        cv2.putText(frame, f"{gesture} ({conf:.1f}%)", (x1, y1 - 15), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 149), 2)
+                    
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    FRAME_WINDOW.image(frame)
+                cap.release()
 
 elif page == "Analytics":
     st.title("Model Analytics")
