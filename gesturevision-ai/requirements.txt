@@ -6,3 +6,4 @@ scikit-learn
 matplotlib
 pandas
 streamlit-webrtc
+numpy==1.26.4
