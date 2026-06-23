@@ -1,7 +1,10 @@
 import numpy as np
 import cv2
 import os
-import tensorflow.lite as tflite
+try:
+    import tflite_runtime.interpreter as tflite
+except ImportError:
+    import tensorflow.lite as tflite
 from PIL import Image
 
 # Load model lazily
